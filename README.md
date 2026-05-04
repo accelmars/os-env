@@ -11,7 +11,7 @@ When the AccelMars OS launches an engine process, it serializes the resolved wor
 
 ## The problem this solves
 
-The AccelMars OS locates a tenant's workspace root before launching any engine (`anchor`, `gateway`, `cortex`, etc.). That location changes depending on whether the install is standalone or multi-tenant. Engines need to know their workspace root at startup, but they should not need to depend on `anchor` — which has its own release cadence, filesystem-walking logic, and heavier dependency tree — just to read a path.
+The AccelMars OS locates a tenant's workspace root before launching any engine. That location changes depending on whether the install is standalone or multi-tenant. Engines need to know their workspace root at startup, but they should not need to depend on `anchor` — which has its own release cadence, filesystem-walking logic, and heavier dependency tree — just to read a path.
 
 This crate is the answer: a tiny (~50 LOC), `serde`-only library that defines the five resolver fields and provides two functions:
 
@@ -95,19 +95,18 @@ pub enum EnvError {
 
 ## Architecture
 
-This crate sits at the bottom of the AccelMars engine dependency graph. The design constraint is intentional: **no anchor dependency**. Anchor implements `WorkspaceResolver` and returns a `ResolveResult` (re-exported from this crate), but engines never need to link anchor. They link this crate, read the env vars the OS sets, and proceed.
+This crate sits at the bottom of the AccelMars engine dependency graph. The design constraint is intentional: **no anchor dependency**. Anchor implements the workspace resolver and returns a `ResolveResult` (re-exported from this crate), but engines never need to link anchor. They link this crate, read the env vars the OS sets, and proceed.
 
 ```
 anchor (resolver impl) ──re-exports──► accelmars-resolver-env (schema + reader)
                                                 ▲
-                                    gateway / cortex / pact / ...
-                                    (depend only on this crate)
+                                         your engine
+                                    (depends only on this crate)
 ```
 
 ## What NOT to use this for
 
 - **Resolving the workspace yourself** — use `anchor root` or depend on `anchor` if you need the full resolver. This crate only reads env vars and does a simple fallback walk; it does not implement the full slug-selection precedence ladder.
-- **Server-side tenant identification** — on the server, tenant ID comes from the `X-Anchor-Tenant-ID` HTTP header set by the platform. This crate is for process-local startup only.
 - **Anything outside AccelMars engines** — if you are not writing an engine that the AccelMars OS launches, this crate is not for you.
 
 ## Telemetry

@@ -120,9 +120,9 @@ mod tests {
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn set_all_vars() {
-        env::set_var(ENV_TENANT_ROOT, "/tmp/.accelmars/AOS");
-        env::set_var(ENV_TENANT_SLUG, "AOS");
-        env::set_var(ENV_ENGINE_HOME, "/tmp/.accelmars/AOS/gateway");
+        env::set_var(ENV_TENANT_ROOT, "/tmp/.accelmars/acme");
+        env::set_var(ENV_TENANT_SLUG, "acme");
+        env::set_var(ENV_ENGINE_HOME, "/tmp/.accelmars/acme/my-engine");
         env::set_var(ENV_MODE, "integrated");
         env::set_var(ENV_SPEC_VERSION, "1");
     }
@@ -140,11 +140,11 @@ mod tests {
         let _lock = ENV_LOCK.lock().unwrap();
         set_all_vars();
         let result = read_from_env().expect("should succeed");
-        assert_eq!(result.tenant_root, PathBuf::from("/tmp/.accelmars/AOS"));
-        assert_eq!(result.tenant_slug, "AOS");
+        assert_eq!(result.tenant_root, PathBuf::from("/tmp/.accelmars/acme"));
+        assert_eq!(result.tenant_slug, "acme");
         assert_eq!(
             result.engine_home,
-            PathBuf::from("/tmp/.accelmars/AOS/gateway")
+            PathBuf::from("/tmp/.accelmars/acme/my-engine")
         );
         assert_eq!(result.mode, ResolverMode::Integrated);
         assert_eq!(result.spec_version, 1);
