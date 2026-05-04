@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose a change to the resolver env schema or API
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case. What are you trying to do that the current API doesn't support?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the API or schema change. Include field names, types, and env var names if applicable.
+    validations:
+      required: true
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Constraint check
+      options:
+        - label: This change does not add a dependency beyond `serde`
+          required: false
+        - label: This change is backward compatible OR includes a migration path
+          required: false

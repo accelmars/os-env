@@ -1,0 +1,10 @@
+[workspace]
+changelog_config = "cliff.toml"
+publish = false
+git_only = true
+git_release_enable = false
+git_tag_name = "{{ package }}-v{{ version }}"
+
+[[package]]
+name = "accelmars-resolver-env"
+changelog_update = false

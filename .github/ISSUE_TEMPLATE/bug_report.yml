@@ -1,0 +1,33 @@
+name: Bug report
+description: Something is wrong with read_from_env() or fallback_standalone()
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Which version of accelmars-resolver-env are you using?
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug. What did you expect, and what did you get?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Minimal code or environment setup to reproduce the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Rust version (`rustc --version`), and relevant env var values (redact sensitive paths).
+    validations:
+      required: true
