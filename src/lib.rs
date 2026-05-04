@@ -65,11 +65,13 @@ pub fn read_from_env() -> Result<ResolveResult, EnvError> {
     };
 
     let version_str = require_var(ENV_SPEC_VERSION)?;
-    let spec_version = version_str.parse::<u32>().map_err(|_| EnvError::InvalidValue {
-        var: ENV_SPEC_VERSION.to_string(),
-        value: version_str,
-        reason: "expected a non-negative integer".to_string(),
-    })?;
+    let spec_version = version_str
+        .parse::<u32>()
+        .map_err(|_| EnvError::InvalidValue {
+            var: ENV_SPEC_VERSION.to_string(),
+            value: version_str,
+            reason: "expected a non-negative integer".to_string(),
+        })?;
 
     Ok(ResolveResult {
         tenant_root,
@@ -102,9 +104,7 @@ pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError> {
         }
         match current.parent().map(|p| p.to_path_buf()) {
             Some(p) if p != current => current = p,
-            _ => {
-                return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string()))
-            }
+            _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
         }
     }
 }
@@ -142,7 +142,10 @@ mod tests {
         let result = read_from_env().expect("should succeed");
         assert_eq!(result.tenant_root, PathBuf::from("/tmp/.accelmars/AOS"));
         assert_eq!(result.tenant_slug, "AOS");
-        assert_eq!(result.engine_home, PathBuf::from("/tmp/.accelmars/AOS/gateway"));
+        assert_eq!(
+            result.engine_home,
+            PathBuf::from("/tmp/.accelmars/AOS/gateway")
+        );
         assert_eq!(result.mode, ResolverMode::Integrated);
         assert_eq!(result.spec_version, 1);
         clear_all_vars();
