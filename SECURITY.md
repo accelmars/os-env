@@ -14,7 +14,7 @@ Report vulnerabilities to: **security@accelmars.com**
 
 Include in your report:
 
-- The version of `accelmars-resolver-env` affected
+- The version of `accelmars-os-env` affected
 - A description of the vulnerability and its potential impact
 - Reproduction steps or a minimal proof-of-concept
 - Any suggested remediation if known

@@ -1,18 +1,18 @@
 [package]
-name = "accelmars-resolver-env"
+name = "accelmars-os-env"
 version = "0.1.1"
 edition = "2021"
 description = "Env-var schema and typed reader for AccelMars workspace resolver"
 license = "Apache-2.0"
-repository = "https://github.com/accelmars/resolver-env"
-homepage = "https://github.com/accelmars/resolver-env"
-documentation = "https://docs.rs/accelmars-resolver-env"
+repository = "https://github.com/accelmars/os-env"
+homepage = "https://github.com/accelmars/os-env"
+documentation = "https://docs.rs/accelmars-os-env"
 readme = "README.md"
 keywords = ["workspace", "resolver", "environment", "accelmars", "multitenant"]
 categories = ["config", "development-tools"]
 
 [lib]
-name = "accelmars_resolver_env"
+name = "accelmars_os_env"
 path = "src/lib.rs"
 
 [dependencies]

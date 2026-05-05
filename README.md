@@ -1,10 +1,10 @@
-# accelmars-resolver-env
+# accelmars-os-env
 
 Shared types and environment-variable reader for the [AccelMars](https://github.com/accelmars) workspace resolver.
 
 When the AccelMars OS launches an engine process, it serializes the resolved workspace location into a small set of environment variables. This crate defines that schema and provides a typed reader so engine authors can consume it without taking a dependency on [`anchor`](https://github.com/accelmars/anchor) itself.
 
-[![CI](https://github.com/accelmars/resolver-env/actions/workflows/ci.yml/badge.svg)](https://github.com/accelmars/resolver-env/actions/workflows/ci.yml)
+[![CI](https://github.com/accelmars/os-env/actions/workflows/ci.yml/badge.svg)](https://github.com/accelmars/os-env/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ---
@@ -24,7 +24,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-accelmars-resolver-env = "0.1"
+accelmars-os-env = "0.1"
 ```
 
 Requires Rust 1.70+. No system dependencies. `serde` is the only runtime dependency.
@@ -32,7 +32,7 @@ Requires Rust 1.70+. No system dependencies. `serde` is the only runtime depende
 ## Quick start
 
 ```rust
-use accelmars_resolver_env::{read_from_env, fallback_standalone, ResolverMode};
+use accelmars_os_env::{read_from_env, fallback_standalone, ResolverMode};
 
 fn main() {
     // In production: OS sets all five env vars before launching your engine.
@@ -98,7 +98,7 @@ pub enum EnvError {
 This crate sits at the bottom of the AccelMars engine dependency graph. The design constraint is intentional: **no anchor dependency**. Anchor implements the workspace resolver and returns a `ResolveResult` (re-exported from this crate), but engines never need to link anchor. They link this crate, read the env vars the OS sets, and proceed.
 
 ```
-anchor (resolver impl) ──re-exports──► accelmars-resolver-env (schema + reader)
+anchor (resolver impl) ──re-exports──► accelmars-os-env (schema + reader)
                                                 ▲
                                          your engine
                                     (depends only on this crate)

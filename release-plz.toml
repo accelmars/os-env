@@ -6,5 +6,5 @@ git_release_enable = false
 git_tag_name = "{{ package }}-v{{ version }}"
 
 [[package]]
-name = "accelmars-resolver-env"
+name = "accelmars-os-env"
 changelog_update = false

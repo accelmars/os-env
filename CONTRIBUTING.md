@@ -1,4 +1,4 @@
-# Contributing to accelmars-resolver-env
+# Contributing to accelmars-os-env
 
 Thank you for your interest. This is a small, intentionally stable crate — its primary constraint is that it must remain free of the `anchor` dependency.
 
@@ -11,8 +11,8 @@ Thank you for your interest. This is a small, intentionally stable crate — its
 ## Setup
 
 ```bash
-git clone https://github.com/accelmars/resolver-env
-cd resolver-env
+git clone https://github.com/accelmars/os-env
+cd os-env
 cargo build
 cargo test
 ```
