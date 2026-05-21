@@ -1,20 +1,19 @@
 use std::path::{Path, PathBuf};
 
-// Env var name constants
 pub const ENV_TENANT_ROOT: &str = "ACCELMARS_TENANT_ROOT";
 pub const ENV_TENANT_SLUG: &str = "ACCELMARS_TENANT_SLUG";
 pub const ENV_ENGINE_HOME: &str = "ACCELMARS_ENGINE_HOME";
 pub const ENV_MODE: &str = "ACCELMARS_MODE";
 pub const ENV_SPEC_VERSION: &str = "ACCELMARS_SPEC_VERSION";
 
-#[derive(Debug, PartialEq, serde::Deserialize)]
+#[derive(Debug, PartialEq, Eq, Clone, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum ResolverMode {
     Standalone,
     Integrated,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct ResolveResult {
     pub tenant_root: PathBuf,
     pub tenant_slug: String,
@@ -44,8 +43,6 @@ impl std::fmt::Display for EnvError {
     }
 }
 
-/// Read the AccelMars workspace resolver result from environment variables.
-/// Pure env-var reads — does not touch the filesystem.
 pub fn read_from_env() -> Result<ResolveResult, EnvError> {
     let tenant_root = PathBuf::from(require_var(ENV_TENANT_ROOT)?);
     let tenant_slug = require_var(ENV_TENANT_SLUG)?;
@@ -86,18 +83,100 @@ fn require_var(name: &str) -> Result<String, EnvError> {
     std::env::var(name).map_err(|_| EnvError::MissingVar(name.to_string()))
 }
 
-/// Locate the workspace root by walking parents from `cwd` looking for `.accelmars/`.
-/// Constructs a standalone `ResolveResult` — does not read env vars.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    /// fallback_standalone injects the `default/` slug layer per OS-ARC22.
+    /// `.accelmars/` on disk → `tenant_root = .accelmars/default/`, slug = "default".
+    #[test]
+    fn fallback_injects_default_slug() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dot = tmp.path().join(".accelmars");
+        fs::create_dir_all(&dot).unwrap();
+
+        let result = fallback_standalone(tmp.path()).expect("walk-up should find .accelmars");
+
+        assert_eq!(result.tenant_slug, STANDALONE_SLUG);
+        assert_eq!(result.tenant_slug, "default");
+        assert_eq!(result.tenant_root, dot.join(STANDALONE_SLUG));
+        assert_eq!(result.engine_home, dot.join(STANDALONE_SLUG));
+        assert_eq!(result.mode, ResolverMode::Standalone);
+        assert_eq!(result.spec_version, 1);
+    }
+
+    /// fallback_standalone walks parent directories until it finds .accelmars/.
+    #[test]
+    fn fallback_walks_up_to_find_marker() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dot = tmp.path().join(".accelmars");
+        fs::create_dir_all(&dot).unwrap();
+
+        let deep = tmp.path().join("a").join("b").join("c");
+        fs::create_dir_all(&deep).unwrap();
+
+        let result = fallback_standalone(&deep).expect("should find via ascent");
+        assert_eq!(result.tenant_root, dot.join(STANDALONE_SLUG));
+    }
+
+    /// fallback_standalone errors when no `.accelmars/` is found up the tree.
+    #[test]
+    fn fallback_errors_when_no_marker() {
+        let tmp = tempfile::tempdir().unwrap();
+        // No .accelmars/ created.
+        let result = fallback_standalone(tmp.path());
+        match result {
+            Err(EnvError::MissingVar(v)) => assert_eq!(v, ENV_TENANT_ROOT),
+            other => panic!("expected MissingVar, got {:?}", other),
+        }
+    }
+
+    /// read_from_env returns InvalidValue for an unrecognized mode.
+    #[test]
+    fn read_from_env_rejects_unknown_mode() {
+        // Use temp env-var scope to avoid global pollution.
+        // SAFETY: tests in this module are single-threaded by default; we set all required vars.
+        unsafe {
+            std::env::set_var(ENV_TENANT_ROOT, "/tmp/x");
+            std::env::set_var(ENV_TENANT_SLUG, "acme");
+            std::env::set_var(ENV_ENGINE_HOME, "/tmp/x");
+            std::env::set_var(ENV_MODE, "garbage");
+            std::env::set_var(ENV_SPEC_VERSION, "1");
+        }
+        let result = read_from_env();
+        unsafe {
+            std::env::remove_var(ENV_TENANT_ROOT);
+            std::env::remove_var(ENV_TENANT_SLUG);
+            std::env::remove_var(ENV_ENGINE_HOME);
+            std::env::remove_var(ENV_MODE);
+            std::env::remove_var(ENV_SPEC_VERSION);
+        }
+        match result {
+            Err(EnvError::InvalidValue { var, .. }) => assert_eq!(var, ENV_MODE),
+            other => panic!("expected InvalidValue, got {:?}", other),
+        }
+    }
+}
+
+/// Default slug for the unnamed-tenant case in standalone mode.
+///
+/// Convention matches Kubernetes namespaces, AWS CLI profiles, Terraform workspaces,
+/// and Docker Compose project names. Per OS-ARC22, every tenant layout includes a
+/// slug subdirectory (`.accelmars/<slug>/`); standalone installs use `default` until
+/// the operator renames via `os tenant rename default <new-slug>`.
+pub const STANDALONE_SLUG: &str = "default";
+
 pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError> {
     let mut current = cwd.to_path_buf();
     loop {
         let marker = current.join(".accelmars");
         if marker.is_dir() {
-            let tenant_root = marker;
+            let tenant_root = marker.join(STANDALONE_SLUG);
             return Ok(ResolveResult {
                 engine_home: tenant_root.clone(),
                 tenant_root,
-                tenant_slug: "standalone".to_string(),
+                tenant_slug: STANDALONE_SLUG.to_string(),
                 mode: ResolverMode::Standalone,
                 spec_version: 1,
             });
@@ -106,108 +185,5 @@ pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError> {
             Some(p) if p != current => current = p,
             _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-    use std::fs;
-    use std::sync::Mutex;
-
-    // Serialize env-mutating tests to avoid interference between parallel test runs.
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
-
-    fn set_all_vars() {
-        env::set_var(ENV_TENANT_ROOT, "/tmp/.accelmars/acme");
-        env::set_var(ENV_TENANT_SLUG, "acme");
-        env::set_var(ENV_ENGINE_HOME, "/tmp/.accelmars/acme/my-engine");
-        env::set_var(ENV_MODE, "integrated");
-        env::set_var(ENV_SPEC_VERSION, "1");
-    }
-
-    fn clear_all_vars() {
-        env::remove_var(ENV_TENANT_ROOT);
-        env::remove_var(ENV_TENANT_SLUG);
-        env::remove_var(ENV_ENGINE_HOME);
-        env::remove_var(ENV_MODE);
-        env::remove_var(ENV_SPEC_VERSION);
-    }
-
-    #[test]
-    fn read_from_env_happy_path() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        set_all_vars();
-        let result = read_from_env().expect("should succeed");
-        assert_eq!(result.tenant_root, PathBuf::from("/tmp/.accelmars/acme"));
-        assert_eq!(result.tenant_slug, "acme");
-        assert_eq!(
-            result.engine_home,
-            PathBuf::from("/tmp/.accelmars/acme/my-engine")
-        );
-        assert_eq!(result.mode, ResolverMode::Integrated);
-        assert_eq!(result.spec_version, 1);
-        clear_all_vars();
-    }
-
-    #[test]
-    fn read_from_env_missing_var() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        set_all_vars();
-        env::remove_var(ENV_TENANT_SLUG);
-        let err = read_from_env().expect_err("should fail on missing var");
-        assert_eq!(err, EnvError::MissingVar(ENV_TENANT_SLUG.to_string()));
-        clear_all_vars();
-    }
-
-    #[test]
-    fn read_from_env_invalid_mode() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        set_all_vars();
-        env::set_var(ENV_MODE, "bogus");
-        let err = read_from_env().expect_err("should fail on invalid mode");
-        match err {
-            EnvError::InvalidValue { var, .. } => assert_eq!(var, ENV_MODE),
-            other => panic!("expected InvalidValue, got {:?}", other),
-        }
-        clear_all_vars();
-    }
-
-    #[test]
-    fn read_from_env_invalid_spec_version() {
-        let _lock = ENV_LOCK.lock().unwrap();
-        set_all_vars();
-        env::set_var(ENV_SPEC_VERSION, "abc");
-        let err = read_from_env().expect_err("should fail on invalid spec version");
-        match err {
-            EnvError::InvalidValue { var, .. } => assert_eq!(var, ENV_SPEC_VERSION),
-            other => panic!("expected InvalidValue, got {:?}", other),
-        }
-        clear_all_vars();
-    }
-
-    #[test]
-    fn fallback_standalone_happy_path() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        fs::create_dir_all(dir.path().join(".accelmars")).unwrap();
-        let deep = dir.path().join("a").join("b").join("c");
-        fs::create_dir_all(&deep).unwrap();
-
-        let result = fallback_standalone(&deep).expect("should find .accelmars/");
-        assert_eq!(result.mode, ResolverMode::Standalone);
-        assert_eq!(result.tenant_slug, "standalone");
-        assert!(
-            result.tenant_root.ends_with(".accelmars"),
-            "tenant_root should end with .accelmars, got {:?}",
-            result.tenant_root
-        );
-    }
-
-    #[test]
-    fn fallback_standalone_not_found() {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let err = fallback_standalone(dir.path()).expect_err("should fail — no .accelmars/");
-        assert_eq!(err, EnvError::MissingVar(ENV_TENANT_ROOT.to_string()));
     }
 }

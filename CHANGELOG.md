@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-05-21
+
+### Changed
+
+- **`fallback_standalone()` now injects a `default/` slug.** Previously returned `engine_home = .accelmars/` with `tenant_slug = "standalone"` — a no-slug-layer shape that contradicted OS-ARC22 ("every layout is `.accelmars/<slug>/`"). Now returns `tenant_root = .accelmars/default/`, `tenant_slug = "default"`, `engine_home = .accelmars/default/`. `default` matches the world-class convention (Kubernetes namespaces, AWS CLI profiles, Terraform workspaces, Docker Compose project names). Upgrade path is mechanical: `os tenant rename default <new-slug>`.
+- `ResolveResult` and `ResolverMode` now derive `Clone + Eq` (in addition to `Debug + PartialEq`). Required by consumers that need to embed `ResolveResult` in a longer-lived context and cheaply hand it to per-task sub-contexts (e.g., pact-engine's `PactSlot`).
+
+### Added
+
+- Exported `STANDALONE_SLUG` const (= `"default"`) so consumers reference the canonical name without hardcoding the string.
+
 ## [0.1.0] - 2026-05-05
 
 ### Features
