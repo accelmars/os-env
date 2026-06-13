@@ -132,6 +132,22 @@ mod tests {
         }
     }
 
+    /// fallback_standalone_bounded stops at `stop_at` and does NOT match a `.accelmars/` above it.
+    #[test]
+    fn fallback_bounded_stops_before_marker_above_boundary() {
+        let tmp = tempfile::tempdir().unwrap();
+        let outer = tmp.path().join("outer");
+        let inner = outer.join("inner");
+        fs::create_dir_all(outer.join(".accelmars")).unwrap();
+        fs::create_dir_all(&inner).unwrap();
+
+        let result = fallback_standalone_bounded(&inner, Some(&inner));
+        match result {
+            Err(EnvError::MissingVar(v)) => assert_eq!(v, ENV_TENANT_ROOT),
+            other => panic!("expected MissingVar, got {:?}", other),
+        }
+    }
+
     /// read_from_env returns InvalidValue for an unrecognized mode.
     #[test]
     fn read_from_env_rejects_unknown_mode() {
@@ -180,6 +196,37 @@ pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError> {
                 mode: ResolverMode::Standalone,
                 spec_version: 1,
             });
+        }
+        match current.parent().map(|p| p.to_path_buf()) {
+            Some(p) if p != current => current = p,
+            _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
+        }
+    }
+}
+
+/// Like [`fallback_standalone`] but stops the upward walk at `stop_at` (inclusive) — a hermetic
+/// boundary so a test (or a sandboxed run) does not escape its temp root and match a real
+/// `.accelmars/` above it. `stop_at = None` is identical to [`fallback_standalone`]. De-drifted
+/// from `pact/crates/os-env` into the published crate per ADR-003 (one resolver for the fleet).
+pub fn fallback_standalone_bounded(
+    cwd: &Path,
+    stop_at: Option<&Path>,
+) -> Result<ResolveResult, EnvError> {
+    let mut current = cwd.to_path_buf();
+    loop {
+        let marker = current.join(".accelmars");
+        if marker.is_dir() {
+            let tenant_root = marker.join(STANDALONE_SLUG);
+            return Ok(ResolveResult {
+                engine_home: tenant_root.clone(),
+                tenant_root,
+                tenant_slug: STANDALONE_SLUG.to_string(),
+                mode: ResolverMode::Standalone,
+                spec_version: 1,
+            });
+        }
+        if stop_at == Some(current.as_path()) {
+            return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string()));
         }
         match current.parent().map(|p| p.to_path_buf()) {
             Some(p) if p != current => current = p,
