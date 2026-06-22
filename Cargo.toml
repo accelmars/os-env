@@ -20,3 +20,6 @@ serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]
 tempfile = "3"
+# cargo-husky installs hooks from .cargo-husky/hooks/ into .git/hooks/ on the
+# first `cargo test`. `user-hooks` opts out of the default Rust hookset.
+cargo-husky = { version = "1", default-features = false, features = ["user-hooks"] }
