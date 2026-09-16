@@ -83,6 +83,67 @@ fn require_var(name: &str) -> Result<String, EnvError> {
     std::env::var(name).map_err(|_| EnvError::MissingVar(name.to_string()))
 }
 
+/// Default slug for the unnamed-tenant case in standalone mode.
+///
+/// Convention matches Kubernetes namespaces, AWS CLI profiles, Terraform workspaces,
+/// and Docker Compose project names. Per OS-ARC22, every tenant layout includes a
+/// slug subdirectory (`.accelmars/<slug>/`); standalone installs use `default` until
+/// the operator renames via `os tenant rename default <new-slug>`.
+pub const STANDALONE_SLUG: &str = "default";
+
+pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError> {
+    let mut current = cwd.to_path_buf();
+    loop {
+        let marker = current.join(".accelmars");
+        if marker.is_dir() {
+            let tenant_root = marker.join(STANDALONE_SLUG);
+            return Ok(ResolveResult {
+                engine_home: tenant_root.clone(),
+                tenant_root,
+                tenant_slug: STANDALONE_SLUG.to_string(),
+                mode: ResolverMode::Standalone,
+                spec_version: 1,
+            });
+        }
+        match current.parent().map(|p| p.to_path_buf()) {
+            Some(p) if p != current => current = p,
+            _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
+        }
+    }
+}
+
+/// Like [`fallback_standalone`] but stops the upward walk at `stop_at` (inclusive) — a hermetic
+/// boundary so a test (or a sandboxed run) does not escape its temp root and match a real
+/// `.accelmars/` above it. `stop_at = None` is identical to [`fallback_standalone`]. De-drifted
+/// from `pact/crates/os-env` into the published crate per ADR-003 (one resolver for the fleet).
+pub fn fallback_standalone_bounded(
+    cwd: &Path,
+    stop_at: Option<&Path>,
+) -> Result<ResolveResult, EnvError> {
+    let mut current = cwd.to_path_buf();
+    loop {
+        let marker = current.join(".accelmars");
+        if marker.is_dir() {
+            let tenant_root = marker.join(STANDALONE_SLUG);
+            return Ok(ResolveResult {
+                engine_home: tenant_root.clone(),
+                tenant_root,
+                tenant_slug: STANDALONE_SLUG.to_string(),
+                mode: ResolverMode::Standalone,
+                spec_version: 1,
+            });
+        }
+        if stop_at == Some(current.as_path()) {
+            return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string()));
+        }
+        match current.parent().map(|p| p.to_path_buf()) {
+            Some(p) if p != current => current = p,
+            _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
+        }
+    }
+}
+
+// Tests live at the end of the file (clippy::items_after_test_module).
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -171,66 +232,6 @@ mod tests {
         match result {
             Err(EnvError::InvalidValue { var, .. }) => assert_eq!(var, ENV_MODE),
             other => panic!("expected InvalidValue, got {:?}", other),
-        }
-    }
-}
-
-/// Default slug for the unnamed-tenant case in standalone mode.
-///
-/// Convention matches Kubernetes namespaces, AWS CLI profiles, Terraform workspaces,
-/// and Docker Compose project names. Per OS-ARC22, every tenant layout includes a
-/// slug subdirectory (`.accelmars/<slug>/`); standalone installs use `default` until
-/// the operator renames via `os tenant rename default <new-slug>`.
-pub const STANDALONE_SLUG: &str = "default";
-
-pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError> {
-    let mut current = cwd.to_path_buf();
-    loop {
-        let marker = current.join(".accelmars");
-        if marker.is_dir() {
-            let tenant_root = marker.join(STANDALONE_SLUG);
-            return Ok(ResolveResult {
-                engine_home: tenant_root.clone(),
-                tenant_root,
-                tenant_slug: STANDALONE_SLUG.to_string(),
-                mode: ResolverMode::Standalone,
-                spec_version: 1,
-            });
-        }
-        match current.parent().map(|p| p.to_path_buf()) {
-            Some(p) if p != current => current = p,
-            _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
-        }
-    }
-}
-
-/// Like [`fallback_standalone`] but stops the upward walk at `stop_at` (inclusive) — a hermetic
-/// boundary so a test (or a sandboxed run) does not escape its temp root and match a real
-/// `.accelmars/` above it. `stop_at = None` is identical to [`fallback_standalone`]. De-drifted
-/// from `pact/crates/os-env` into the published crate per ADR-003 (one resolver for the fleet).
-pub fn fallback_standalone_bounded(
-    cwd: &Path,
-    stop_at: Option<&Path>,
-) -> Result<ResolveResult, EnvError> {
-    let mut current = cwd.to_path_buf();
-    loop {
-        let marker = current.join(".accelmars");
-        if marker.is_dir() {
-            let tenant_root = marker.join(STANDALONE_SLUG);
-            return Ok(ResolveResult {
-                engine_home: tenant_root.clone(),
-                tenant_root,
-                tenant_slug: STANDALONE_SLUG.to_string(),
-                mode: ResolverMode::Standalone,
-                spec_version: 1,
-            });
-        }
-        if stop_at == Some(current.as_path()) {
-            return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string()));
-        }
-        match current.parent().map(|p| p.to_path_buf()) {
-            Some(p) if p != current => current = p,
-            _ => return Err(EnvError::MissingVar(ENV_TENANT_ROOT.to_string())),
         }
     }
 }
