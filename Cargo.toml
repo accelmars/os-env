@@ -6,10 +6,11 @@ description = "Env-var schema and typed reader for AccelMars workspace resolver"
 license = "Apache-2.0"
 repository = "https://github.com/accelmars/os-env"
 homepage = "https://github.com/accelmars/os-env"
-documentation = "https://docs.rs/accelmars-os-env"
 readme = "README.md"
 keywords = ["workspace", "resolver", "environment", "accelmars", "multitenant"]
 categories = ["config", "development-tools"]
+# Not published to crates.io — consumed by git tag. See README "Why this repository is public".
+publish = false
 
 [lib]
 name = "accelmars_os_env"

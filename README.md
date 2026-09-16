@@ -4,7 +4,6 @@ Shared types and environment-variable reader for the [AccelMars](https://github.
 
 When the AccelMars OS launches an engine process, it serializes the resolved workspace location into a small set of environment variables. This crate defines that schema and provides a typed reader so engine authors can consume it without taking a dependency on [`anchor`](https://github.com/accelmars/anchor) itself.
 
-[![CI](https://github.com/accelmars/os-env/actions/workflows/ci.yml/badge.svg)](https://github.com/accelmars/os-env/actions/workflows/ci.yml)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 ---
@@ -18,14 +17,27 @@ This crate is the answer: a tiny (~50 LOC), `serde`-only library that defines th
 - **`read_from_env()`** — reads all five environment variables set by the OS at engine launch
 - **`fallback_standalone(cwd)`** — walks parent directories to find `.accelmars/` for development environments where the OS has not launched the engine
 
+## Why this repository is public
+
+This crate is **not a product**, and it is not published to crates.io. It is public for one
+concrete reason: [`anchor`](https://github.com/accelmars/anchor) is public, Apache-2.0, and
+installable from source — and `anchor` depends on this crate by git URL. If this repository were
+private, `cargo install --git https://github.com/accelmars/anchor` would fail for everyone outside
+AccelMars.
+
+So: it is here so that `anchor` works. Anything else you get from it is a bonus.
+
 ## Installation
 
-Add to your `Cargo.toml`:
+There is no crates.io release, and none is planned. Depend on it by git tag:
 
 ```toml
 [dependencies]
-accelmars-os-env = "0.1"
+accelmars-os-env = { git = "https://github.com/accelmars/os-env", tag = "accelmars-os-env-v0.3.1" }
 ```
+
+Pin a tag rather than tracking the default branch — this crate's schema changes when the AccelMars
+OS layout spec does, and it does not promise semver stability to outside consumers.
 
 Requires Rust 1.70+. No system dependencies. `serde` is the only runtime dependency.
 
@@ -107,7 +119,7 @@ anchor (resolver impl) ──re-exports──► accelmars-os-env (schema + read
 ## What NOT to use this for
 
 - **Resolving the workspace yourself** — use `anchor root` or depend on `anchor` if you need the full resolver. This crate only reads env vars and does a simple fallback walk; it does not implement the full slug-selection precedence ladder.
-- **Anything outside AccelMars engines** — if you are not writing an engine that the AccelMars OS launches, this crate is not for you.
+- **Anything outside AccelMars engines** — if you are not writing an engine that the AccelMars OS launches, this crate is not for you. It is readable as a ~50-line example of a typed env-var contract, and that is the only value it has to a stranger.
 
 ## Telemetry
 
