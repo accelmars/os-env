@@ -17,6 +17,10 @@ This crate is the answer: a tiny (~50 LOC), `serde`-only library that defines th
 - **`read_from_env()`** — reads all five environment variables set by the OS at engine launch
 - **`fallback_standalone(cwd)`** — walks parent directories to find `.accelmars/` for development environments where the OS has not launched the engine
 
+> **No CI.** This repository runs no GitHub Actions and shows no status checks. The quality gate
+> (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`) runs locally on `git push`.
+> A PR here will never show a green check — run the gate yourself before opening one.
+
 ## Why this repository is public
 
 This crate is **not a product**, and it is not published to crates.io. It is public for one

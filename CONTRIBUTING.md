@@ -44,7 +44,7 @@ docs: clarify fallback_standalone cwd semantics
 - `feat:` — new capability
 - `fix:` — bug fix
 - `docs:` — documentation only
-- `chore:` — tooling, CI, formatting
+- `chore:` — tooling, formatting
 - `refactor:` — internal restructure, no behavior change
 
 **Never include** internal methodology strings, contract IDs, or guild workflow language in commit titles. Commit titles are read by external contributors in release notes.
@@ -58,7 +58,7 @@ All changes via PR. Branch naming conventions:
 | `feat/` | New capabilities |
 | `fix/` | Bug fixes |
 | `docs/` | Documentation only |
-| `chore/` | Tooling, CI, formatting |
+| `chore/` | Tooling, formatting |
 | `refactor/` | Internal restructure |
 
 ## PR process
@@ -66,8 +66,14 @@ All changes via PR. Branch naming conventions:
 1. Create a branch from `main` with the appropriate prefix
 2. Make your changes; ensure `cargo fmt`, `cargo clippy -- -D warnings`, and `cargo test` all pass
 3. Open a PR — use the PR template
-4. CI must pass before merge
-5. Squash merge only — one commit per PR on `main`
+4. Squash merge only — one commit per PR on `main`
+
+### There is no CI on this repository
+
+This repository runs **no GitHub Actions**. The workflows were removed deliberately; the quality
+gate runs locally on `git push` instead, and the three commands in step 2 are the whole contract.
+Run them before you open a PR — nothing on GitHub will run them for you, and nothing will report a
+green check.
 
 ## What NOT to commit
 
