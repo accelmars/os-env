@@ -8,3 +8,8 @@ git_tag_name = "{{ package }}-v{{ version }}"
 [[package]]
 name = "accelmars-os-env"
 changelog_update = false
+# release = false: release-plz does not run here. The GitHub Actions workflows were deleted
+# when booster took over release + gate + deploy, so nothing invokes release-plz — this file
+# only supplies the tag-name and changelog conventions. Releases are cut with `booster release`,
+# which refuses to run while a package block claims release-plz is active.
+release = false
