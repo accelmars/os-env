@@ -2,6 +2,8 @@
 name = "accelmars-os-env"
 version = "0.3.1"
 edition = "2021"
+# The README states this; declaring it makes cargo enforce it instead of it being a claim.
+rust-version = "1.70"
 description = "Env-var schema and typed reader for AccelMars workspace resolver"
 license = "Apache-2.0"
 repository = "https://github.com/accelmars/os-env"

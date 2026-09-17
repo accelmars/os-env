@@ -1,98 +1,99 @@
 # accelmars-os-env
 
-Shared types and environment-variable reader for the [AccelMars](https://github.com/accelmars) workspace resolver.
-
-When the AccelMars OS launches an engine process, it serializes the resolved workspace location into a small set of environment variables. This crate defines that schema and provides a typed reader so engine authors can consume it without taking a dependency on [`anchor`](https://github.com/accelmars/anchor) itself.
+**Read the AccelMars workspace environment from Rust.**
 
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
----
+When the AccelMars OS launches an engine, it passes the resolved workspace location through
+environment variables. This crate gives you typed access to those values.
 
-## The problem this solves
-
-The AccelMars OS locates a tenant's workspace root before launching any engine. That location changes depending on whether the install is standalone or multi-tenant. Engines need to know their workspace root at startup, but they should not need to depend on `anchor` — which has its own release cadence, filesystem-walking logic, and heavier dependency tree — just to read a path.
-
-This crate is the answer: a tiny (~50 LOC), `serde`-only library that defines the five resolver fields and provides two functions:
-
-- **`read_from_env()`** — reads all five environment variables set by the OS at engine launch
-- **`fallback_standalone(cwd)`** — walks parent directories to find `.accelmars/` for development environments where the OS has not launched the engine
+If you are building an AccelMars engine, use this crate.
+If you are not, you probably want [`anchor`](https://github.com/accelmars/anchor) instead.
 
 > **No CI.** This repository runs no GitHub Actions and shows no status checks. The quality gate
-> (`cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`) runs locally on `git push`.
-> A PR here will never show a green check — run the gate yourself before opening one.
+> runs locally on `git push`, so a PR here will never go green — run the checks yourself.
 
-## Why this repository is public
-
-This crate is **not a product**, and it is not published to crates.io. It is public for one
-concrete reason: [`anchor`](https://github.com/accelmars/anchor) is public, Apache-2.0, and
-installable from source — and `anchor` depends on this crate by git URL. If this repository were
-private, `cargo install --git https://github.com/accelmars/anchor` would fail for everyone outside
-AccelMars.
-
-So: it is here so that `anchor` works. Anything else you get from it is a bonus.
-
-## Installation
-
-There is no crates.io release, and none is planned. Depend on it by git tag:
-
-```toml
-[dependencies]
-accelmars-os-env = { git = "https://github.com/accelmars/os-env", tag = "accelmars-os-env-v0.3.1" }
-```
-
-Pin a tag rather than tracking the default branch — this crate's schema changes when the AccelMars
-OS layout spec does, and it does not promise semver stability to outside consumers.
-
-Requires Rust 1.70+. No system dependencies. `serde` is the only runtime dependency.
+---
 
 ## Quick start
 
+```toml
+[dependencies]
+accelmars-os-env = { git = "https://github.com/accelmars/os-env", tag = "accelmars-os-env-v0.3.2" }
+```
+
 ```rust
-use accelmars_os_env::{read_from_env, fallback_standalone, ResolverMode};
+use accelmars_os_env::read_from_env;
 
 fn main() {
-    // In production: OS sets all five env vars before launching your engine.
-    let result = read_from_env()
+    let env = read_from_env()
+        .expect("could not read AccelMars workspace environment");
+
+    println!("tenant root: {}", env.tenant_root.display());
+    println!("engine home: {}", env.engine_home.display());
+}
+```
+
+That is the production path: the OS set the variables before your process started.
+
+---
+
+## Local development
+
+Running an engine yourself with `cargo run` means the OS is not there to set anything. Fall back
+to walking up from the current directory looking for `.accelmars/`:
+
+```rust
+use accelmars_os_env::{fallback_standalone, read_from_env};
+
+fn main() {
+    let env = read_from_env()
         .or_else(|_| {
-            // Fallback for `cargo run` / local development without the OS.
             let cwd = std::env::current_dir().unwrap();
             fallback_standalone(&cwd)
         })
         .expect("could not locate AccelMars workspace");
 
-    println!("tenant root: {}", result.tenant_root.display());
-    println!("engine home: {}", result.engine_home.display());
-
-    match result.mode {
-        ResolverMode::Standalone => println!("running in standalone mode"),
-        ResolverMode::Integrated => println!("tenant: {}", result.tenant_slug),
-    }
+    println!("workspace: {}", env.tenant_root.display());
 }
 ```
 
-## Environment variable schema
+That two-step is the normal shape for an engine that must run both ways.
 
-The OS sets these five variables when launching an engine:
+### What the fallback actually returns
 
-| Variable | Type | Description |
-|----------|------|-------------|
-| `ACCELMARS_TENANT_ROOT` | absolute path | Root directory for the active tenant (`.accelmars/<slug>/` in integrated mode; `.accelmars/` in standalone) |
-| `ACCELMARS_TENANT_SLUG` | string | Active tenant identifier; `"standalone"` in standalone mode |
-| `ACCELMARS_ENGINE_HOME` | absolute path | This engine's directory under the tenant root |
-| `ACCELMARS_MODE` | `"standalone"` \| `"integrated"` | Resolver mode detected by `anchor` |
-| `ACCELMARS_SPEC_VERSION` | integer | Layout spec version from `MANIFEST.toml` |
+The fallback does not simply hand back the directory it found. Given `.accelmars/` on disk it
+returns:
 
-All constants are exported as `ENV_*` pub consts for use in tests and tooling.
+| Field | Value |
+|---|---|
+| `tenant_root` | `<found>/.accelmars/default` — **the `default/` slug layer is appended** |
+| `tenant_slug` | `"default"` |
+| `engine_home` | the same path as `tenant_root` |
+| `mode` | `ResolverMode::Standalone` |
+| `spec_version` | `1`, hardcoded |
 
-## API
+Two things surprise people. The slug is `"default"`, not `"standalone"` — `Standalone` is the
+*mode*, while `default` is the tenant name an unnamed workspace gets (`STANDALONE_SLUG`, renamed
+via `os tenant rename default <new-slug>`). And in this path `engine_home` equals `tenant_root`,
+because there is no OS to assign the engine its own directory; do not rely on them differing.
+
+### Bounded walk
+
+`fallback_standalone` walks upward until it hits the filesystem root, so under a temp directory it
+can escape and match a real `.accelmars/` above. For tests and sandboxes, stop it:
 
 ```rust
-// Read from env vars (production path)
-pub fn read_from_env() -> Result<ResolveResult, EnvError>
+fallback_standalone_bounded(&cwd, Some(&sandbox_root))?;
+```
 
-// Walk parents from cwd looking for .accelmars/ (development fallback)
-pub fn fallback_standalone(cwd: &Path) -> Result<ResolveResult, EnvError>
+`stop_at = None` behaves exactly like `fallback_standalone`.
 
+---
+
+## What you get
+
+```rust
 pub struct ResolveResult {
     pub tenant_root: PathBuf,
     pub tenant_slug: String,
@@ -101,35 +102,133 @@ pub struct ResolveResult {
     pub spec_version: u32,
 }
 
-pub enum ResolverMode { Standalone, Integrated }
+pub enum ResolverMode {
+    Standalone,   // one unnamed workspace; slug "default"
+    Integrated,   // a tenant the AccelMars OS manages, e.g. .accelmars/acme/
+}
+```
 
+---
+
+## Environment variables
+
+The OS sets five. `read_from_env()` requires **all** of them — a missing one is an error, not a
+default.
+
+| Variable | Meaning |
+|---|---|
+| `ACCELMARS_TENANT_ROOT` | root directory of the active tenant |
+| `ACCELMARS_TENANT_SLUG` | active tenant identifier |
+| `ACCELMARS_ENGINE_HOME` | directory for the current engine |
+| `ACCELMARS_MODE` | `standalone` or `integrated` |
+| `ACCELMARS_SPEC_VERSION` | workspace layout spec version (a `u32`) |
+
+Read them through `read_from_env()` rather than by hand. The names are also exported as
+`ENV_TENANT_ROOT`, `ENV_TENANT_SLUG`, `ENV_ENGINE_HOME`, `ENV_MODE` and `ENV_SPEC_VERSION` for
+tests and tooling.
+
+---
+
+## Errors
+
+```rust
 pub enum EnvError {
     MissingVar(String),
     InvalidValue { var: String, value: String, reason: String },
 }
 ```
 
-## Architecture
+`read_from_env()` returns `MissingVar` for an absent variable, and `InvalidValue` when `MODE` is
+not one of the two accepted strings or `SPEC_VERSION` does not parse as a `u32`.
 
-This crate sits at the bottom of the AccelMars engine dependency graph. The design constraint is intentional: **no anchor dependency**. Anchor implements the workspace resolver and returns a `ResolveResult` (re-exported from this crate), but engines never need to link anchor. They link this crate, read the env vars the OS sets, and proceed.
+**A wart worth knowing:** when `fallback_standalone` finds no `.accelmars/` anywhere above `cwd`,
+it also reports `MissingVar("ACCELMARS_TENANT_ROOT")`. Nothing was looking at an environment
+variable at that point — the message reads as though something was. Treat that specific error from
+the fallback as *"no workspace found"*, and say so in your own message to the user.
 
+---
+
+## Why this crate exists
+
+Without it, every engine would have to know which variables the OS sets, how the values are
+encoded, and what the current layout spec looks like — or depend on `anchor` just to borrow the
+types.
+
+```text
+AccelMars OS  →  resolves workspace  →  sets env vars
+                                             ↓
+                                          engine
+                                             ↓
+                                     accelmars-os-env
+                                             ↓
+                                      ResolveResult
 ```
-anchor (resolver impl) ──re-exports──► accelmars-os-env (schema + reader)
-                                                ▲
-                                         your engine
-                                    (depends only on this crate)
+
+`anchor` holds the full resolver; engines only need the result. So `anchor` depends on this crate,
+and an engine can depend on this crate alone and stay small.
+
+## What it does not do
+
+It does not implement the workspace resolver. Do not use it to reproduce workspace-selection
+logic — that lives in `anchor` (`anchor root`). This crate reads what the OS supplied, and offers
+one simple upward-walking fallback for development.
+
+## Should you use it?
+
+**Yes**, if you are writing an AccelMars engine that needs to know its workspace.
+
+**Probably not**, if you are not building one, if you need the full resolver, or if you only found
+this repository because `anchor` depends on it. In that last case:
+
+> You almost certainly want [`anchor`](https://github.com/accelmars/anchor), not this crate.
+
+---
+
+## Why this repository is public
+
+Because [`anchor`](https://github.com/accelmars/anchor) is public, Apache-2.0, and installable
+from source — and it depends on this crate by git URL:
+
+```sh
+cargo install --git https://github.com/accelmars/anchor --tag accelmars-anchor-v2.1.0
 ```
 
-## What NOT to use this for
+If this repository were private, that command would fail for everyone outside AccelMars. It is
+here so `anchor` works. It is infrastructure, not a separately supported product.
 
-- **Resolving the workspace yourself** — use `anchor root` or depend on `anchor` if you need the full resolver. This crate only reads env vars and does a simple fallback walk; it does not implement the full slug-selection precedence ladder.
-- **Anything outside AccelMars engines** — if you are not writing an engine that the AccelMars OS launches, this crate is not for you. It is readable as a ~50-line example of a typed env-var contract, and that is the only value it has to a stranger.
+---
+
+## Installation notes
+
+Not published to crates.io, and none is planned. **Pin a tag; do not track the default branch.**
+The schema changes when the AccelMars layout spec does, and this crate makes no semver promise to
+outside consumers.
+
+Requires Rust 1.70+ (declared as `rust-version`, so cargo enforces it). `serde` is the only
+runtime dependency. No system dependencies.
+
+---
+
+## Development
+
+```sh
+cargo fmt --check
+cargo clippy -- -D warnings
+cargo test
+```
+
+Run these before opening a PR — nothing on GitHub will run them for you. See
+[CONTRIBUTING.md](CONTRIBUTING.md).
+
+---
 
 ## Telemetry
 
-This crate collects no telemetry. It makes no network calls. It reads environment variables and walks the local filesystem.
+None. This crate reads environment variables and walks the local filesystem for the development
+fallback. It makes no network requests, and nothing leaves your machine.
+
+---
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
-Copyright 2026 AccelMars Co., Ltd.
+Apache 2.0 — see [LICENSE](LICENSE). Copyright 2026 AccelMars Co., Ltd.
