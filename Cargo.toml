@@ -1,6 +1,6 @@
 [package]
 name = "accelmars-os-env"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 # The README states this; declaring it makes cargo enforce it instead of it being a claim.
 rust-version = "1.70"

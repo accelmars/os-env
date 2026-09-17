@@ -1,29 +1,23 @@
-# Changelog
 
-All notable changes to this project will be documented in this file.
+## [0.3.2] - 2026-09-17
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
+### Documentation
+- Rewrite for the engine author; declare the MSRV
+- State that there is no CI on this repository ([#7](https://github.com/accelmars/os-env/pull/7))
+- State why this repo is public; fix install to a git tag; drop dead CI badge ([#7](https://github.com/accelmars/os-env/pull/7))
 
-## [Unreleased]
-
-## [0.2.0] - 2026-05-21
-
-### Changed
-
-- **`fallback_standalone()` now injects a `default/` slug.** Previously returned `engine_home = .accelmars/` with `tenant_slug = "standalone"` — a no-slug-layer shape that contradicted OS-ARC22 ("every layout is `.accelmars/<slug>/`"). Now returns `tenant_root = .accelmars/default/`, `tenant_slug = "default"`, `engine_home = .accelmars/default/`. `default` matches the world-class convention (Kubernetes namespaces, AWS CLI profiles, Terraform workspaces, Docker Compose project names). Upgrade path is mechanical: `os tenant rename default <new-slug>`.
-- `ResolveResult` and `ResolverMode` now derive `Clone + Eq` (in addition to `Debug + PartialEq`). Required by consumers that need to embed `ResolveResult` in a longer-lived context and cheaply hand it to per-task sub-contexts (e.g., pact-engine's `PactSlot`).
-
-### Added
-
-- Exported `STANDALONE_SLUG` const (= `"default"`) so consumers reference the canonical name without hardcoding the string.
-
-## [0.1.0] - 2026-05-05
+## [0.3.0] - 2026-06-13
 
 ### Features
+- Add fallback_standalone_bounded — de-drift pact's bounded resolver (ADR-003)
 
-- `ResolveResult` struct — typed representation of the five resolver fields (`tenant_root`, `tenant_slug`, `engine_home`, `mode`, `spec_version`)
-- `ResolverMode` enum — `Standalone` | `Integrated`
-- `read_from_env()` — reads all five `ACCELMARS_*` environment variables into a typed `ResolveResult`
-- `fallback_standalone(cwd)` — parent-walks from `cwd` to find `.accelmars/` for development environments launched outside the OS
-- `EnvError` — typed error with `MissingVar` and `InvalidValue` variants; carries variable name and invalid value for diagnostics
-- Exported `ENV_*` constants for all five variable names
+## [0.1.1] - 2026-05-05
+
+### Features
+- Add accelmars-resolver-env v0.1.0
+
+
+### Bug Fixes
+- Remove internal exposure — audit report, project codename, engine names (#2) ([#2](https://github.com/accelmars/os-env/pull/2))
+
+
