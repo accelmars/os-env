@@ -464,12 +464,6 @@ This crate:
 * walks the local filesystem for the development fallback;
 * makes no network requests;
 
-
-## Telemetry
-
-None. This crate reads environment variables and walks the local filesystem for the development
-fallback. It makes no network requests, and nothing leaves your machine.
-
 ---
 
 ## License
